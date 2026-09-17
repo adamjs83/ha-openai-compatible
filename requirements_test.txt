@@ -1,3 +1,12 @@
 # Requires Python 3.14+ (Home Assistant 2026.9 floor). Not installable on Python 3.13.
 pytest-homeassistant-custom-component>=0.13.317
 openai==2.45.0
+
+# The manifest declares dependencies: ["conversation"], and the ported tests exercise
+# stt/tts too; a full HA install resolves each core component's own `requirements` at
+# runtime, but bare pytest does not, so they're pinned here to match core tag 2026.9.2's
+# homeassistant/components/{conversation,tts}/manifest.json.
+hassil==3.12.0
+gazetteer-matcher==1.1.0
+home-assistant-intents==2026.8.28
+mutagen==1.48.1
