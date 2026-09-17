@@ -13,6 +13,8 @@ async def test_client_built_with_base_url(hass: HomeAssistant) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={"api_key": "sk-test", CONF_BASE_URL: "http://192.0.2.10:4000/v1"},
+        version=2,
+        minor_version=7,
     )
     entry.add_to_hass(hass)
 
@@ -32,6 +34,8 @@ async def test_api_key_optional(hass: HomeAssistant) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_BASE_URL: "http://192.0.2.10:4000/v1"},
+        version=2,
+        minor_version=7,
     )
     entry.add_to_hass(hass)
 
