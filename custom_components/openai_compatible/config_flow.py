@@ -104,7 +104,7 @@ from .const import (
     UNSUPPORTED_PRIORITY_SERVICE_TIERS_MODELS,
     UNSUPPORTED_WEB_SEARCH_MODELS,
 )
-from .url_util import InvalidBaseURL, normalize_base_url
+from .url_util import CredentialsInBaseURL, InvalidBaseURL, normalize_base_url
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -148,6 +148,8 @@ class OpenAIConfigFlow(ConfigFlow, domain=DOMAIN):
             self._async_abort_entries_match(user_input)
             try:
                 await validate_input(self.hass, user_input)
+            except CredentialsInBaseURL:
+                errors["base"] = "credentials_in_url"
             except InvalidBaseURL:
                 errors["base"] = "invalid_base_url"
             except openai.APIConnectionError:
@@ -216,7 +218,10 @@ class OpenAIConfigFlow(ConfigFlow, domain=DOMAIN):
         """Dialog that informs the user that reauth is required."""
         if not user_input:
             return self.async_show_form(
-                step_id="reauth_confirm", data_schema=STEP_USER_DATA_SCHEMA
+                step_id="reauth_confirm",
+                data_schema=self.add_suggested_values_to_schema(
+                    STEP_USER_DATA_SCHEMA, self._get_reauth_entry().data
+                ),
             )
 
         return await self.async_step_user(user_input)

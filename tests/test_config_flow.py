@@ -647,6 +647,24 @@ async def test_form_invalid_auth(hass: HomeAssistant, side_effect, error) -> Non
     assert result2["errors"] == {"base": error}
 
 
+async def test_form_credentials_in_base_url(hass: HomeAssistant) -> None:
+    """A base_url with embedded credentials must be rejected, not accepted."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_BASE_URL: "https://user:secret@192.0.2.10:4000/v1",
+            "api_key": "bla",
+        },
+    )
+
+    assert result2["type"] is FlowResultType.FORM
+    assert result2["errors"] == {"base": "credentials_in_url"}
+
+
 @pytest.mark.parametrize(
     ("current_options", "new_options", "expected_options"),
     [
@@ -1595,6 +1613,67 @@ async def test_reauth(hass: HomeAssistant) -> None:
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"
     assert mock_config_entry.data[CONF_API_KEY] == "new_api_key"
+
+
+async def test_reauth_preserves_base_url(hass: HomeAssistant) -> None:
+    """Reauth must not silently reset a configured base_url to the default.
+
+    Regression test: async_step_reauth_confirm used to show
+    STEP_USER_DATA_SCHEMA without prefilling suggested values (unlike
+    async_step_user, which does), so the reauth form displayed
+    DEFAULT_BASE_URL instead of the entry's actual base_url -- and a user
+    re-authenticating after a key rotation would have their integration
+    silently repointed from their configured endpoint (e.g. LiteLLM) back to
+    api.openai.com.
+    """
+    hass.config.components.add("openai_compatible")
+    configured_base_url = "http://192.0.2.10:4000/v1"
+    mock_config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_API_KEY: "old-key", CONF_BASE_URL: configured_base_url},
+        state=config_entries.ConfigEntryState.LOADED,
+        version=2,
+        minor_version=7,
+    )
+    mock_config_entry.add_to_hass(hass)
+
+    result = await mock_config_entry.start_reauth_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reauth_confirm"
+
+    # The shown form must suggest the entry's own base_url, not the schema
+    # default -- this is the actual bug. Without the fix this assertion
+    # fails because no suggested_value is set at all.
+    schema_keys = result["data_schema"].schema
+    base_url_marker = next(k for k in schema_keys if k == CONF_BASE_URL)
+    assert base_url_marker.description == {"suggested_value": configured_base_url}
+
+    with (
+        patch(
+            "custom_components.openai_compatible.config_flow.openai.resources.models.AsyncModels.list",
+            new_callable=AsyncMock,
+        ),
+        patch(
+            "custom_components.openai_compatible.async_setup_entry",
+            return_value=True,
+        ),
+    ):
+        # A real browser resubmits whatever is displayed in the form, so an
+        # unmodified base_url field is submitted back as-is alongside the
+        # new key -- this is what "the user didn't touch the field" means.
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_API_KEY: "new_api_key",
+                CONF_BASE_URL: configured_base_url,
+            },
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert mock_config_entry.data[CONF_API_KEY] == "new_api_key"
+    assert mock_config_entry.data[CONF_BASE_URL] == configured_base_url
 
 
 @pytest.mark.parametrize(
