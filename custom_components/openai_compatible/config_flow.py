@@ -103,6 +103,7 @@ from .const import (
     UNSUPPORTED_PRIORITY_SERVICE_TIERS_MODELS,
     UNSUPPORTED_WEB_SEARCH_MODELS,
 )
+from .url_util import InvalidBaseURL, normalize_base_url
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -119,6 +120,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> None:
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
+    data[CONF_BASE_URL] = normalize_base_url(data[CONF_BASE_URL])
     client = openai.AsyncOpenAI(
         api_key=data[CONF_API_KEY],
         base_url=data[CONF_BASE_URL],
@@ -145,6 +147,8 @@ class OpenAIConfigFlow(ConfigFlow, domain=DOMAIN):
             self._async_abort_entries_match(user_input)
             try:
                 await validate_input(self.hass, user_input)
+            except InvalidBaseURL:
+                errors["base"] = "invalid_base_url"
             except openai.APIConnectionError:
                 errors["base"] = "cannot_connect"
             except openai.AuthenticationError:
