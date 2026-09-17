@@ -9,6 +9,9 @@ from homeassistant.helpers import llm
 DOMAIN = "openai_compatible"
 LOGGER: logging.Logger = logging.getLogger(__package__)
 
+CONF_BASE_URL = "base_url"
+DEFAULT_BASE_URL = "https://api.openai.com/v1"
+
 DEFAULT_CONVERSATION_NAME = "OpenAI Conversation"
 DEFAULT_AI_TASK_NAME = "OpenAI AI Task"
 DEFAULT_STT_NAME = "OpenAI STT"

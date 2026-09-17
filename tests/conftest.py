@@ -22,8 +22,10 @@ from openai.types.responses.response import IncompleteDetails
 import pytest
 
 from custom_components.openai_compatible.const import (
+    CONF_BASE_URL,
     CONF_CHAT_MODEL,
     DEFAULT_AI_TASK_NAME,
+    DEFAULT_BASE_URL,
     DEFAULT_CONVERSATION_NAME,
     DEFAULT_STT_NAME,
     DEFAULT_TTS_NAME,
@@ -65,6 +67,7 @@ def mock_config_entry(
         domain=DOMAIN,
         data={
             "api_key": "bla",
+            CONF_BASE_URL: DEFAULT_BASE_URL,
         },
         version=2,
         minor_version=7,

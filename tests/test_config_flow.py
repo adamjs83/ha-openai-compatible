@@ -12,6 +12,7 @@ from custom_components.openai_compatible.config_flow import (
     RECOMMENDED_CONVERSATION_OPTIONS,
 )
 from custom_components.openai_compatible.const import (
+    CONF_BASE_URL,
     CONF_CHAT_MODEL,
     CONF_CODE_INTERPRETER,
     CONF_IMAGE_MODEL,
@@ -35,6 +36,7 @@ from custom_components.openai_compatible.const import (
     CONF_WEB_SEARCH_TIMEZONE,
     CONF_WEB_SEARCH_USER_LOCATION,
     DEFAULT_AI_TASK_NAME,
+    DEFAULT_BASE_URL,
     DEFAULT_CONVERSATION_NAME,
     DEFAULT_STT_NAME,
     DEFAULT_TTS_NAME,
@@ -90,6 +92,7 @@ async def test_form(hass: HomeAssistant) -> None:
     assert result2["type"] is FlowResultType.CREATE_ENTRY
     assert result2["data"] == {
         "api_key": "bla",
+        "base_url": DEFAULT_BASE_URL,
     }
     assert result2["options"] == {}
     assert result2["subentries"] == [
@@ -127,7 +130,7 @@ async def test_duplicate_entry(hass: HomeAssistant) -> None:
     """Test we abort on duplicate config entry."""
     MockConfigEntry(
         domain=DOMAIN,
-        data={CONF_API_KEY: "bla"},
+        data={CONF_API_KEY: "bla", CONF_BASE_URL: DEFAULT_BASE_URL},
     ).add_to_hass(hass)
 
     result = await hass.config_entries.flow.async_init(
