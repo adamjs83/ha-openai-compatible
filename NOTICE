@@ -1,0 +1,10 @@
+openai_compatible
+Copyright 2026 Adam Smith
+
+This product includes software developed by the Home Assistant project
+(https://github.com/home-assistant/core), licensed under the Apache License,
+Version 2.0.
+
+The contents of custom_components/openai_compatible/ are derived from
+homeassistant/components/openai_conversation/ at tag 2026.9.2, with
+modifications to support a user-configurable API base URL.
