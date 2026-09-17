@@ -1,0 +1,14 @@
+{
+  "domain": "openai_compatible",
+  "name": "OpenAI Compatible",
+  "after_dependencies": ["assist_pipeline", "intent"],
+  "codeowners": ["@adamjs83"],
+  "config_flow": true,
+  "dependencies": ["conversation"],
+  "documentation": "https://github.com/adamjs83/ha-openai-compatible",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/adamjs83/ha-openai-compatible/issues",
+  "requirements": ["openai==2.45.0"],
+  "version": "1.0.0"
+}
