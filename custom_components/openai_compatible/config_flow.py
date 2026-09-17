@@ -74,6 +74,7 @@ from .const import (
     DEFAULT_STT_PROMPT,
     DEFAULT_TTS_NAME,
     DOMAIN,
+    PLACEHOLDER_API_KEY,
     RECOMMENDED_AI_TASK_OPTIONS,
     RECOMMENDED_CHAT_MODEL,
     RECOMMENDED_CODE_INTERPRETER,
@@ -110,7 +111,7 @@ _LOGGER = logging.getLogger(__name__)
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_BASE_URL, default=DEFAULT_BASE_URL): str,
-        vol.Required(CONF_API_KEY): str,
+        vol.Optional(CONF_API_KEY, default=""): str,
     }
 )
 
@@ -122,7 +123,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> None:
     """
     data[CONF_BASE_URL] = normalize_base_url(data[CONF_BASE_URL])
     client = openai.AsyncOpenAI(
-        api_key=data[CONF_API_KEY],
+        api_key=data.get(CONF_API_KEY) or PLACEHOLDER_API_KEY,
         base_url=data[CONF_BASE_URL],
         http_client=get_async_client(hass),
     )
@@ -654,7 +655,7 @@ class OpenAISubentryFlowHandler(ConfigSubentryFlow):
         zone_home = self.hass.states.get(ENTITY_ID_HOME)
         if zone_home is not None:
             client = openai.AsyncOpenAI(
-                api_key=self._get_entry().data[CONF_API_KEY],
+                api_key=self._get_entry().data.get(CONF_API_KEY) or PLACEHOLDER_API_KEY,
                 base_url=self._get_entry().data[CONF_BASE_URL],
                 http_client=get_async_client(self.hass),
             )

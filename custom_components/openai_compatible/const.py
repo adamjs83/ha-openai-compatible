@@ -11,6 +11,7 @@ LOGGER: logging.Logger = logging.getLogger(__package__)
 
 CONF_BASE_URL = "base_url"
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
+PLACEHOLDER_API_KEY = "not-required"
 
 DEFAULT_CONVERSATION_NAME = "OpenAI Conversation"
 DEFAULT_AI_TASK_NAME = "OpenAI AI Task"

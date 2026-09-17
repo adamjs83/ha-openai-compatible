@@ -54,6 +54,7 @@ from .const import (
     DEFAULT_TTS_NAME,
     DOMAIN,
     LOGGER,
+    PLACEHOLDER_API_KEY,
     RECOMMENDED_AI_TASK_OPTIONS,
     RECOMMENDED_CHAT_MODEL,
     RECOMMENDED_MAX_TOKENS,
@@ -282,7 +283,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: OpenAIConfigEntry) -> bool:
     """Set up OpenAI Conversation from a config entry."""
     client = openai.AsyncOpenAI(
-        api_key=entry.data[CONF_API_KEY],
+        api_key=entry.data.get(CONF_API_KEY) or PLACEHOLDER_API_KEY,
         base_url=entry.data[CONF_BASE_URL],
         http_client=get_async_client(hass),
     )
