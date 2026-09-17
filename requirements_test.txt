@@ -11,3 +11,4 @@ gazetteer-matcher==1.1.0
 home-assistant-intents==2026.8.28
 mutagen==1.48.1
 PyTurboJPEG==1.8.3
+ha-ffmpeg==3.2.2
