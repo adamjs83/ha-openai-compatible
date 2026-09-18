@@ -123,12 +123,12 @@
           "data": {
             "chat_model": "[%key:common::generic::model%]",
             "max_tokens": "Maximum tokens to return in response",
-            "store_responses": "Store requests and responses in OpenAI",
+            "store_responses": "Store requests and responses on the provider",
             "temperature": "Temperature",
             "top_p": "Top P"
           },
           "data_description": {
-            "store_responses": "If enabled, requests and responses are stored by OpenAI and visible in your OpenAI dashboard logs"
+            "store_responses": "Sets the Responses API store flag, asking the provider to keep requests and responses in its own logs. Support varies: OpenAI shows them in its dashboard, while many compatible servers ignore the flag entirely."
           },
           "title": "Additional settings"
         },

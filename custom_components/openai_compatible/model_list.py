@@ -22,7 +22,7 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
 )
 
-from .const import LOGGER
+from .const import LOGGER, RECOMMENDED_CHAT_MODEL
 
 DEFAULT_TIMEOUT = 10.0
 
@@ -48,6 +48,14 @@ async def async_fetch_model_ids(
     except openai.OpenAIError as err:
         LOGGER.debug("Could not list models: %s", err)
         return []
+    except Exception:  # noqa: BLE001 - see below
+        # Deliberately broad. This runs inside a config-flow form and has a
+        # working fallback (a free-text model field), so nothing it can raise
+        # justifies taking the dialog down: a proxy may return a payload the
+        # SDK cannot parse, and the failure modes of arbitrary
+        # OpenAI-compatible servers are not enumerable in advance.
+        LOGGER.debug("Unexpected error listing models", exc_info=True)
+        return []
 
     return sorted({model.id for model in page.data if getattr(model, "id", None)})
 
@@ -71,3 +79,17 @@ def model_field(model_ids: list[str]) -> Any:
             sort=True,
         )
     )
+
+
+def default_model(model_ids: list[str]) -> str:
+    """Return the model to preselect for a new endpoint.
+
+    Upstream's default is RECOMMENDED_CHAT_MODEL, an OpenAI name. Offering it
+    to someone configuring a third-party provider preselects a model that will
+    fail on first use, so prefer it only when the provider actually serves it
+    (or when discovery told us nothing) and otherwise start from what is
+    advertised.
+    """
+    if not model_ids or RECOMMENDED_CHAT_MODEL in model_ids:
+        return RECOMMENDED_CHAT_MODEL
+    return model_ids[0]

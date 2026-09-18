@@ -73,6 +73,20 @@ async def test_fetch_survives_an_endpoint_that_will_not_list(error: Exception) -
     assert await async_fetch_model_ids(_client(error=error)) == []
 
 
+async def test_fetch_survives_a_non_openai_error() -> None:
+    """Discovery must never break the form it runs inside.
+
+    A proxy can return a payload the SDK cannot parse, or a client can be
+    wired in a way that raises something other than an OpenAIError; either way
+    the dropdown should degrade to a text box, not take the dialog down.
+    """
+    client = MagicMock()
+    client.with_options.return_value = client
+    client.models.list = MagicMock(return_value="not awaitable")
+
+    assert await async_fetch_model_ids(client) == []
+
+
 async def test_field_is_a_dropdown_that_still_accepts_a_typed_name() -> None:
     """A proxy may serve a model it does not advertise, so allow free text."""
     field = model_field(["claude-sonnet", "gpt-4o-mini"])

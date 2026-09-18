@@ -177,6 +177,9 @@ async def test_creating_conversation_subentry(
 
     processed_options = RECOMMENDED_CONVERSATION_OPTIONS.copy()
     processed_options[CONF_PROMPT] = processed_options[CONF_PROMPT].strip()
+    # The init step now asks for the model, so the created subentry records
+    # one explicitly instead of falling back to the default at request time.
+    processed_options[CONF_CHAT_MODEL] = RECOMMENDED_CHAT_MODEL
 
     assert result2["data"] == processed_options
 
@@ -239,23 +242,17 @@ async def test_subentry_unsupported_model(
         subentry_flow["flow_id"],
         {
             CONF_RECOMMENDED: False,
+            CONF_CHAT_MODEL: "o1-mini",
             CONF_PROMPT: "Speak like a pirate",
             CONF_LLM_HASS_API: ["assist"],
         },
     )
     await hass.async_block_till_done()
-    assert subentry_flow["type"] is FlowResultType.FORM
-    assert subentry_flow["step_id"] == "additional"
 
-    # Configure additional step
-    subentry_flow = await hass.config_entries.subentries.async_configure(
-        subentry_flow["flow_id"],
-        {
-            CONF_CHAT_MODEL: "o1-mini",
-        },
-    )
-    await hass.async_block_till_done()
+    # The model is asked for, and so validated, on the init step -- the flow
+    # stays there and reports the error against the field.
     assert subentry_flow["type"] is FlowResultType.FORM
+    assert subentry_flow["step_id"] == "init"
     assert subentry_flow["errors"] == {"chat_model": "model_not_supported"}
 
 
@@ -295,6 +292,7 @@ async def test_subentry_reasoning_effort_list(
         subentry_flow["flow_id"],
         {
             CONF_RECOMMENDED: False,
+            CONF_CHAT_MODEL: model,
             CONF_PROMPT: "Speak like a pirate",
             CONF_LLM_HASS_API: ["assist"],
         },
@@ -305,9 +303,7 @@ async def test_subentry_reasoning_effort_list(
     # Configure additional step
     subentry_flow = await hass.config_entries.subentries.async_configure(
         subentry_flow["flow_id"],
-        {
-            CONF_CHAT_MODEL: model,
-        },
+        {},
     )
     assert subentry_flow["type"] is FlowResultType.FORM
     assert subentry_flow["step_id"] == "model"
@@ -349,6 +345,7 @@ async def test_subentry_reasoning_summary_visibility(
         subentry_flow["flow_id"],
         {
             CONF_RECOMMENDED: False,
+            CONF_CHAT_MODEL: model,
             CONF_PROMPT: "Speak like a pirate",
             CONF_LLM_HASS_API: ["assist"],
         },
@@ -359,9 +356,7 @@ async def test_subentry_reasoning_summary_visibility(
     # Configure additional step
     subentry_flow = await hass.config_entries.subentries.async_configure(
         subentry_flow["flow_id"],
-        {
-            CONF_CHAT_MODEL: model,
-        },
+        {},
     )
     assert subentry_flow["type"] is FlowResultType.FORM
     assert subentry_flow["step_id"] == "model"
@@ -398,6 +393,7 @@ async def test_subentry_reasoning_summary_options(
         subentry_flow["flow_id"],
         {
             CONF_RECOMMENDED: False,
+            CONF_CHAT_MODEL: model,
             CONF_PROMPT: "Speak like a pirate",
             CONF_LLM_HASS_API: ["assist"],
         },
@@ -407,9 +403,7 @@ async def test_subentry_reasoning_summary_options(
 
     subentry_flow = await hass.config_entries.subentries.async_configure(
         subentry_flow["flow_id"],
-        {
-            CONF_CHAT_MODEL: model,
-        },
+        {},
     )
     assert subentry_flow["type"] is FlowResultType.FORM
     assert subentry_flow["step_id"] == "model"
@@ -446,6 +440,7 @@ async def test_subentry_reasoning_summary_default_sanitized_on_model_switch(
         subentry_flow["flow_id"],
         {
             CONF_RECOMMENDED: False,
+            CONF_CHAT_MODEL: "o3",
             CONF_PROMPT: "Speak like a pirate",
             CONF_LLM_HASS_API: ["assist"],
         },
@@ -454,7 +449,7 @@ async def test_subentry_reasoning_summary_default_sanitized_on_model_switch(
 
     subentry_flow = await hass.config_entries.subentries.async_configure(
         subentry_flow["flow_id"],
-        {CONF_CHAT_MODEL: "o3"},
+        {},
     )
     assert subentry_flow["step_id"] == "model"
 
@@ -512,6 +507,7 @@ async def test_subentry_service_tier_list(
         subentry_flow["flow_id"],
         {
             CONF_RECOMMENDED: False,
+            CONF_CHAT_MODEL: model,
             CONF_PROMPT: "Speak like a pirate",
             CONF_LLM_HASS_API: ["assist"],
         },
@@ -522,9 +518,7 @@ async def test_subentry_service_tier_list(
     # Configure additional step
     subentry_flow = await hass.config_entries.subentries.async_configure(
         subentry_flow["flow_id"],
-        {
-            CONF_CHAT_MODEL: model,
-        },
+        {},
     )
     assert subentry_flow["type"] is FlowResultType.FORM
     assert subentry_flow["step_id"] == "model"
@@ -558,6 +552,7 @@ async def test_subentry_unsupported_reasoning_effort(
         subentry_flow["flow_id"],
         {
             CONF_RECOMMENDED: False,
+            CONF_CHAT_MODEL: "gpt-5",
             CONF_PROMPT: "Speak like a pirate",
             CONF_LLM_HASS_API: ["assist"],
         },
@@ -568,9 +563,7 @@ async def test_subentry_unsupported_reasoning_effort(
     # Configure additional step
     subentry_flow = await hass.config_entries.subentries.async_configure(
         subentry_flow["flow_id"],
-        {
-            CONF_CHAT_MODEL: "gpt-5",
-        },
+        {},
     )
     assert subentry_flow["type"] is FlowResultType.FORM
     assert subentry_flow["step_id"] == "model"
@@ -706,11 +699,11 @@ async def test_form_credentials_in_base_url(hass: HomeAssistant) -> None:
             (
                 {
                     CONF_RECOMMENDED: False,
+                    CONF_CHAT_MODEL: "o1-pro",
                     CONF_PROMPT: "Speak like a pro",
                 },
                 {
                     CONF_TEMPERATURE: 1.0,
-                    CONF_CHAT_MODEL: "o1-pro",
                     CONF_TOP_P: RECOMMENDED_TOP_P,
                     CONF_MAX_TOKENS: 10000,
                 },
@@ -740,11 +733,11 @@ async def test_form_credentials_in_base_url(hass: HomeAssistant) -> None:
             (
                 {
                     CONF_RECOMMENDED: False,
+                    CONF_CHAT_MODEL: RECOMMENDED_CHAT_MODEL,
                     CONF_PROMPT: "Speak like a pirate",
                 },
                 {
                     CONF_TEMPERATURE: 0.3,
-                    CONF_CHAT_MODEL: RECOMMENDED_CHAT_MODEL,
                     CONF_TOP_P: RECOMMENDED_TOP_P,
                     CONF_MAX_TOKENS: RECOMMENDED_MAX_TOKENS,
                 },
@@ -797,11 +790,11 @@ async def test_form_credentials_in_base_url(hass: HomeAssistant) -> None:
             (
                 {
                     CONF_RECOMMENDED: False,
+                    CONF_CHAT_MODEL: "gpt-4o",
                     CONF_PROMPT: "Speak like super Mario",
                 },
                 {
                     CONF_TEMPERATURE: 0.8,
-                    CONF_CHAT_MODEL: "gpt-4o",
                     CONF_TOP_P: 0.9,
                     CONF_MAX_TOKENS: 1000,
                     CONF_STORE_RESPONSES: True,
@@ -852,11 +845,11 @@ async def test_form_credentials_in_base_url(hass: HomeAssistant) -> None:
             (
                 {
                     CONF_RECOMMENDED: False,
+                    CONF_CHAT_MODEL: "gpt-5.6",
                     CONF_PROMPT: "Speak like a pirate",
                 },
                 {
                     CONF_TEMPERATURE: 0.8,
-                    CONF_CHAT_MODEL: "gpt-5.6",
                     CONF_TOP_P: 0.9,
                     CONF_MAX_TOKENS: 1000,
                 },
@@ -975,11 +968,11 @@ async def test_form_credentials_in_base_url(hass: HomeAssistant) -> None:
             (
                 {
                     CONF_RECOMMENDED: False,
+                    CONF_CHAT_MODEL: "o3-mini",
                     CONF_PROMPT: "Speak like a pirate",
                 },
                 {
                     CONF_TEMPERATURE: 0.8,
-                    CONF_CHAT_MODEL: "o3-mini",
                     CONF_TOP_P: 0.9,
                     CONF_MAX_TOKENS: 1000,
                 },
@@ -1020,11 +1013,11 @@ async def test_form_credentials_in_base_url(hass: HomeAssistant) -> None:
             (
                 {
                     CONF_RECOMMENDED: False,
+                    CONF_CHAT_MODEL: "gpt-4o",
                     CONF_PROMPT: "Speak like a pirate",
                 },
                 {
                     CONF_TEMPERATURE: 0.8,
-                    CONF_CHAT_MODEL: "gpt-4o",
                     CONF_TOP_P: 0.9,
                     CONF_MAX_TOKENS: 1000,
                 },
@@ -1075,11 +1068,11 @@ async def test_form_credentials_in_base_url(hass: HomeAssistant) -> None:
             (
                 {
                     CONF_RECOMMENDED: False,
+                    CONF_CHAT_MODEL: "gpt-5-pro",
                     CONF_PROMPT: "Speak like a pirate",
                 },
                 {
                     CONF_TEMPERATURE: 0.8,
-                    CONF_CHAT_MODEL: "gpt-5-pro",
                     CONF_TOP_P: 0.9,
                     CONF_MAX_TOKENS: 1000,
                 },
@@ -1155,7 +1148,13 @@ async def test_subentry_switching(
 
     assert subentry_flow["type"] is FlowResultType.ABORT
     assert subentry_flow["reason"] == "reconfigure_successful"
-    assert subentry.data == expected_options
+    # The init step always asks for a model, so every subentry records one.
+    # Cases that do not name one get the default, which is what the flow
+    # submits for them; cases that do still win, being unpacked second.
+    assert subentry.data == {
+        CONF_CHAT_MODEL: RECOMMENDED_CHAT_MODEL,
+        **expected_options,
+    }
 
 
 @pytest.mark.parametrize("store_responses", [False, True])
@@ -1183,6 +1182,7 @@ async def test_subentry_web_search_user_location(
         {
             CONF_RECOMMENDED: False,
             CONF_PROMPT: "Speak like a pirate",
+            CONF_CHAT_MODEL: RECOMMENDED_CHAT_MODEL,
         },
     )
     assert subentry_flow["type"] is FlowResultType.FORM
@@ -1193,7 +1193,6 @@ async def test_subentry_web_search_user_location(
         subentry_flow["flow_id"],
         {
             CONF_TEMPERATURE: 1.0,
-            CONF_CHAT_MODEL: RECOMMENDED_CHAT_MODEL,
             CONF_TOP_P: RECOMMENDED_TOP_P,
             CONF_MAX_TOKENS: RECOMMENDED_MAX_TOKENS,
             CONF_STORE_RESPONSES: store_responses,
@@ -1307,6 +1306,7 @@ async def test_creating_ai_task_subentry(
     assert result2.get("title") == "Custom AI Task"
     assert result2.get("data") == {
         CONF_RECOMMENDED: True,
+        CONF_CHAT_MODEL: RECOMMENDED_CHAT_MODEL,
     }
 
     assert (
@@ -1354,6 +1354,7 @@ async def test_creating_ai_task_subentry_additional(
         {
             "name": "Advanced AI Task",
             CONF_RECOMMENDED: False,
+            CONF_CHAT_MODEL: "gpt-4o",
         },
     )
 
@@ -1364,7 +1365,6 @@ async def test_creating_ai_task_subentry_additional(
     result3 = await hass.config_entries.subentries.async_configure(
         result["flow_id"],
         {
-            CONF_CHAT_MODEL: "gpt-4o",
             CONF_MAX_TOKENS: 200,
             CONF_STORE_RESPONSES: True,
             CONF_TEMPERATURE: 0.5,

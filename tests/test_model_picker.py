@@ -47,27 +47,17 @@ async def _model_step(
 ) -> dict:
     """Return the form that asks for the model, for any endpoint type.
 
-    stt and tts are single-step flows that ask on init; conversation and
-    ai_task_data ask on the step after it.
+    All four types ask on the first screen, so that picking a model never
+    depends on noticing the "recommended" checkbox first.
     """
     with patch(DISCOVERY, return_value=models):
         result = await hass.config_entries.subentries.async_init(
             (entry.entry_id, subentry_type),
             context={"source": config_entries.SOURCE_USER},
         )
-        assert result["type"] is FlowResultType.FORM
-        assert result["step_id"] == "init"
-
-        if subentry_type in ("stt", "tts"):
-            return result
-
-        result = await hass.config_entries.subentries.async_configure(
-            result["flow_id"],
-            {CONF_NAME: "An endpoint", CONF_RECOMMENDED: False},
-        )
-        assert result["type"] is FlowResultType.FORM
-        assert result["step_id"] == "additional"
-        return result
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "init"
+    return result
 
 
 @pytest.mark.parametrize(
@@ -133,18 +123,15 @@ async def test_a_non_openai_model_name_survives_the_flow(
             (mock_config_entry.entry_id, "conversation"),
             context={"source": config_entries.SOURCE_USER},
         )
+        # The model is chosen on the very first screen, alongside the name.
         result = await hass.config_entries.subentries.async_configure(
             result["flow_id"],
-            {CONF_NAME: "Sonnet via LiteLLM", CONF_RECOMMENDED: False},
+            {
+                CONF_NAME: "Sonnet via LiteLLM",
+                CONF_CHAT_MODEL: "claude-sonnet-4-6",
+                CONF_RECOMMENDED: True,
+            },
         )
-        result = await hass.config_entries.subentries.async_configure(
-            result["flow_id"], {CONF_CHAT_MODEL: "claude-sonnet-4-6"}
-        )
-        # remaining steps take their defaults
-        while result["type"] is FlowResultType.FORM:
-            result = await hass.config_entries.subentries.async_configure(
-                result["flow_id"], {}
-            )
         await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY

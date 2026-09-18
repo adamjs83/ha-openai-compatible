@@ -104,7 +104,7 @@ from .const import (
     UNSUPPORTED_PRIORITY_SERVICE_TIERS_MODELS,
     UNSUPPORTED_WEB_SEARCH_MODELS,
 )
-from .model_list import async_fetch_model_ids, model_field
+from .model_list import async_fetch_model_ids, default_model, model_field
 from .url_util import (
     CredentialsInBaseURL,
     InvalidBaseURL,
@@ -325,36 +325,58 @@ class OpenAISubentryFlowHandler(ConfigSubentryFlow):
                 }
             )
 
+        # The model belongs on the first screen. Picking one is the entire
+        # point of adding an endpoint, and behind the "recommended" checkbox
+        # it was unreachable: ticked, this step creates the subentry and the
+        # model silently stays RECOMMENDED_CHAT_MODEL -- an OpenAI name a
+        # third-party provider will not serve. entity.py reads
+        # CONF_CHAT_MODEL regardless of the recommended flag, so a model
+        # chosen here takes effect on either path.
+        model_ids = await async_fetch_model_ids(self._get_entry().runtime_data)
+        step_schema[
+            vol.Optional(CONF_CHAT_MODEL, default=default_model(model_ids))
+        ] = model_field(model_ids)
+
         step_schema[
             vol.Required(CONF_RECOMMENDED, default=options.get(CONF_RECOMMENDED, False))
         ] = bool
+
+        errors: dict[str, str] = {}
 
         if user_input is not None:
             if user_input.get(CONF_LLM_HASS_API) is None:
                 user_input.pop(CONF_LLM_HASS_API, None)
 
-            if user_input[CONF_RECOMMENDED]:
-                if self._is_new:
-                    return self.async_create_entry(
-                        title=user_input.pop(CONF_NAME),
+            # Checked here rather than on the next step, because the
+            # recommended path creates the subentry from this one and would
+            # otherwise skip the check entirely.
+            if user_input.get(CONF_CHAT_MODEL) in UNSUPPORTED_MODELS:
+                errors[CONF_CHAT_MODEL] = "model_not_supported"
+
+            if not errors:
+                if user_input[CONF_RECOMMENDED]:
+                    if self._is_new:
+                        return self.async_create_entry(
+                            title=user_input.pop(CONF_NAME),
+                            data=user_input,
+                        )
+                    return self.async_update_and_abort(
+                        self._get_entry(),
+                        self._get_reconfigure_subentry(),
                         data=user_input,
                     )
-                return self.async_update_and_abort(
-                    self._get_entry(),
-                    self._get_reconfigure_subentry(),
-                    data=user_input,
-                )
 
-            options.update(user_input)
-            if CONF_LLM_HASS_API in options and CONF_LLM_HASS_API not in user_input:
-                options.pop(CONF_LLM_HASS_API)
-            return await self.async_step_additional()
+                options.update(user_input)
+                if CONF_LLM_HASS_API in options and CONF_LLM_HASS_API not in user_input:
+                    options.pop(CONF_LLM_HASS_API)
+                return await self.async_step_additional()
 
         return self.async_show_form(
             step_id="init",
             data_schema=self.add_suggested_values_to_schema(
                 vol.Schema(step_schema), options
             ),
+            errors=errors,
         )
 
     async def async_step_additional(
@@ -365,14 +387,8 @@ class OpenAISubentryFlowHandler(ConfigSubentryFlow):
         errors: dict[str, str] = {}
 
         step_schema: VolDictType = {
-            # Upstream makes this a free-text box defaulting to an OpenAI
-            # model name. Offer what the provider actually serves instead.
-            vol.Optional(
-                CONF_CHAT_MODEL,
-                default=RECOMMENDED_CHAT_MODEL,
-            ): model_field(
-                await async_fetch_model_ids(self._get_entry().runtime_data)
-            ),
+            # CONF_CHAT_MODEL is asked on the init step, so that it is
+            # reachable without unticking "recommended" first.
             vol.Optional(
                 CONF_MAX_TOKENS,
                 default=RECOMMENDED_MAX_TOKENS,
@@ -393,8 +409,6 @@ class OpenAISubentryFlowHandler(ConfigSubentryFlow):
 
         if user_input is not None:
             options.update(user_input)
-            if user_input.get(CONF_CHAT_MODEL) in UNSUPPORTED_MODELS:
-                errors[CONF_CHAT_MODEL] = "model_not_supported"
 
             if not errors:
                 return await self.async_step_model()
