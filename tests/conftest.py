@@ -41,6 +41,8 @@ from homeassistant.helpers import llm
 from homeassistant.setup import async_setup_component
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.syrupy import HomeAssistantSnapshotExtension
+from syrupy.assertion import SnapshotAssertion
 
 pytest_plugins = "pytest_homeassistant_custom_component"
 
@@ -49,6 +51,25 @@ pytest_plugins = "pytest_homeassistant_custom_component"
 def auto_enable_custom_integrations(enable_custom_integrations):
     """Enable loading custom integrations in all tests."""
     return
+
+
+@pytest.fixture
+def snapshot(snapshot: SnapshotAssertion) -> SnapshotAssertion:
+    """Return the snapshot fixture with Home Assistant's extension.
+
+    Both pytest-homeassistant-custom-component and syrupy register a
+    `snapshot` fixture through the pytest11 entry point, and the plugin that
+    happens to load last wins. syrupy's own fixture stores snapshots in
+    `__snapshots__/`, while HomeAssistantSnapshotExtension uses `snapshots/`
+    -- which is where core's ported .ambr files live. Whichever fixture wins
+    is therefore decided by entry-point iteration order, which varies between
+    machines: CI resolved the HA one and passed, while a local run resolved
+    syrupy's and failed with "snapshot does not exist".
+
+    Redefining it here (as core's own tests/conftest.py does) pins it: a
+    conftest fixture always takes precedence over a plugin's.
+    """
+    return snapshot.use_extension(HomeAssistantSnapshotExtension)
 
 
 @pytest.fixture
