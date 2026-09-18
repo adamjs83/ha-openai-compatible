@@ -30,7 +30,7 @@
         },
         "data_description": {
           "api_key": "Your OpenAI API key.",
-          "base_url": "The OpenAI-compatible endpoint, e.g. http://litellm.local:4000/v1 for LiteLLM. Must support the Responses API."
+          "base_url": "The base URL of the OpenAI-compatible API, including any version path such as /v1. The endpoint must implement the Responses API."
         },
         "description": "Set up OpenAI Conversation integration by providing your OpenAI API key. Instructions to obtain an API key can be found [here]({instructions_url})."
       }
