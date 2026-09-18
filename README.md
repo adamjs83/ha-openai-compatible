@@ -144,6 +144,16 @@ know about anyway:
   string. Options are offered based on those name patterns, and the endpoint's own error
   is what you'll see if you ask for something it can't do.
 
+## Known OpenAI-specific behaviour
+
+The base URL is configurable, but much of the rest is still upstream's OpenAI-shaped
+logic: some request parameters are sent to every provider, and which options the config
+flow offers is inferred from OpenAI model-name prefixes. That means options can appear
+for endpoints that cannot honour them, and be withheld from endpoints that could.
+
+[`docs/provider-genericity.md`](docs/provider-genericity.md) has the full audit, what
+each item costs, and the design decision that has to be made first.
+
 ## Relationship to Home Assistant core
 
 `custom_components/openai_compatible/` is derived from
