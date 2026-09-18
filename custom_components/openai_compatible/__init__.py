@@ -49,6 +49,7 @@ from .const import (
     CONF_TEMPERATURE,
     CONF_TOP_P,
     DEFAULT_AI_TASK_NAME,
+    DEFAULT_BASE_URL,
     DEFAULT_NAME,
     DEFAULT_STT_NAME,
     DEFAULT_TTS_NAME,
@@ -488,6 +489,16 @@ async def async_migrate_entry(hass: HomeAssistant, entry: OpenAIConfigEntry) -> 
                         entry, subentry, data=data
                     )
         hass.config_entries.async_update_entry(entry, minor_version=7)
+
+    if entry.version == 2 and entry.minor_version == 7:
+        # base_url is this fork's addition, so an entry written by a build
+        # from before it existed has no such key, and async_setup_entry's
+        # lookup raises KeyError. Such an install was implicitly talking to
+        # OpenAI, which is what DEFAULT_BASE_URL is, so backfilling it keeps
+        # the endpoint it was already using.
+        data = dict(entry.data)
+        data.setdefault(CONF_BASE_URL, DEFAULT_BASE_URL)
+        hass.config_entries.async_update_entry(entry, data=data, minor_version=8)
 
     LOGGER.debug(
         "Migration to version %s:%s successful", entry.version, entry.minor_version

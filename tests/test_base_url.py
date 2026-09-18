@@ -5,7 +5,11 @@ from unittest.mock import AsyncMock, patch
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.openai_compatible.const import CONF_BASE_URL, DOMAIN
+from custom_components.openai_compatible.const import (
+    CONF_BASE_URL,
+    DEFAULT_BASE_URL,
+    DOMAIN,
+)
 
 
 async def test_client_built_with_base_url(hass: HomeAssistant) -> None:
@@ -48,3 +52,31 @@ async def test_api_key_optional(hass: HomeAssistant) -> None:
         await hass.async_block_till_done()
 
     assert mock_client.call_args.kwargs["api_key"] == "not-required"
+
+
+async def test_migration_backfills_missing_base_url(hass: HomeAssistant) -> None:
+    """An entry stored before base_url existed must still set up.
+
+    Entries written by an earlier build of this fork have no base_url key at
+    all, so anything that indexes entry.data[CONF_BASE_URL] raises KeyError
+    and the integration fails to load on restart.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"api_key": "sk-test"},
+        version=2,
+        minor_version=7,
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.openai_compatible.openai.AsyncOpenAI"
+    ) as mock_client:
+        mock_client.return_value.platform_headers = lambda: {}
+        mock_client.return_value.with_options.return_value.models.list = AsyncMock()
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert entry.data[CONF_BASE_URL] == DEFAULT_BASE_URL
+    assert entry.minor_version == 8
+    assert mock_client.call_args.kwargs["base_url"] == DEFAULT_BASE_URL
