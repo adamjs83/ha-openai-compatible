@@ -171,6 +171,29 @@ pytest tests/ -v
 The suite is core's `openai_conversation` test suite, ported as a regression net, plus
 tests for the base-URL behavior this fork adds.
 
+## Releases
+
+HACS falls back to serving the default branch when a repository has no releases, so
+every download looks identical and there is no way to tell what is installed. Tagged
+releases fix that, and Home Assistant shows `manifest.json`'s version on the
+integration page.
+
+Versions are `0.x` while the config entry shape is still changing; `1.0.0` when it
+settles.
+
+To cut one:
+
+```bash
+python scripts/release.py 0.2.0
+git push origin main --follow-tags
+```
+
+The script bumps `manifest.json`, commits, and creates the annotated tag `v0.2.0`. It
+deliberately does not push — pushing the tag is what publishes. That triggers
+[`release.yaml`](.github/workflows/release.yaml), which refuses to publish if the tag
+and the manifest version disagree (HACS reads the tag, HA reads the manifest; when they
+drift you install "v0.2.0" and it reports 0.1.0) and then creates the GitHub release.
+
 ## License
 
 [Apache-2.0](LICENSE), inherited from Home Assistant core. See [NOTICE](NOTICE) for
