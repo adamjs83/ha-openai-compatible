@@ -19,10 +19,15 @@ control, routing, key management or privacy, or you self-host models, there is n
 tell the core integration about it. This fork adds a **Base URL** field to the config
 flow and threads it to every client it creates.
 
-## What you get
+## How it is organised
 
-Everything the core integration provides, as config **subentries** you can add more than
-one of:
+**One entry per server or provider**, and **one endpoint per model** underneath it.
+Setup asks only for the connection; nothing is created on your behalf. You then add
+endpoints yourself, picking the type and the model each time — so a single LiteLLM entry
+can carry a conversation agent on one model, another on a second, and a TTS endpoint on
+a third.
+
+Each endpoint is one of four types, and each becomes its own Home Assistant entity:
 
 - **Conversation agent** — an Assist conversation entity, with the LLM Assist API,
   tool calling, and the full upstream option set (model, temperature, top-p, max tokens,
@@ -30,7 +35,9 @@ one of:
 - **AI Task** — for `ai_task.generate_data` / image generation
 - **Speech-to-text** — an STT entity
 - **Text-to-speech** — a TTS entity, with speed control
-- **Actions** — `openai_compatible.generate_content` and `openai_compatible.generate_image`
+
+Plus two actions on the entry itself: `openai_compatible.generate_content` and
+`openai_compatible.generate_image`.
 
 ## Requirements
 
@@ -53,15 +60,32 @@ Copy `custom_components/openai_compatible/` into your Home Assistant
 
 ## Configuration
 
-The initial dialog asks for two things:
+### 1. Add the provider
 
 | Field | Notes |
 | --- | --- |
+| **Name** | Label for this provider, e.g. `LiteLLM`. Leave blank to use the endpoint's host. |
 | **Base URL** | Full URL including any version path, e.g. `https://api.openai.com/v1`. Passed to the OpenAI SDK as-is. |
 | **API key** | Optional — **leave blank** for an endpoint that does not authenticate. |
 
-Then add one subentry per capability you want (conversation, AI Task, STT, TTS), each
-with its own model and options.
+Submitting it checks the connection with `GET /v1/models` and creates the entry. No
+entities are created yet, deliberately: guessing them would mean pointing STT and TTS at
+OpenAI model names your provider probably does not serve.
+
+You can add **several entries for the same server** — one per provider-side key, say.
+Upstream refuses this as a duplicate; this fork does not.
+
+### 2. Add endpoints for the models you want
+
+On the entry, use **Add conversation agent** / **Add AI task** / **Add speech-to-text** /
+**Add text-to-speech**. Each flow offers a **model dropdown populated from that
+provider's own `GET /v1/models`**, read when you open the form, so it lists what is
+actually available right then. The dropdown also accepts a typed-in name, for a provider
+that routes models it does not advertise (LiteLLM wildcard routes, for instance), and
+falls back to a plain text box if the endpoint will not list models at all.
+
+Repeat per model. Name each endpoint something you will recognise in Assist — the
+subentry title becomes the entity name.
 
 ### Base URL rules
 
@@ -109,12 +133,16 @@ versions; several popular local servers still do not.
 
 ### Model names
 
-The default and "recommended" model names come from upstream and are OpenAI's
-(`gpt-4o-mini`, `gpt-4o-mini-tts`, `gpt-4o-mini-transcribe`, …). Set the model your
-endpoint actually serves in each subentry's options. Upstream's lists of models that
-don't support web search, image generation, and so on are also keyed to OpenAI names, so
-they won't match a third-party model string — the endpoint's own error is what you'll
-see if you ask for something it can't do.
+Pick from the dropdown and this mostly takes care of itself. Two upstream behaviours to
+know about anyway:
+
+- The fallback defaults are OpenAI's (`gpt-4o-mini`, `gpt-4o-mini-tts`,
+  `gpt-4o-mini-transcribe`), used only if you never choose a model. A new endpoint starts
+  with **Recommended settings** unticked so the flow always asks.
+- Upstream's lists of models that don't support web search, image generation, reasoning
+  effort and so on are keyed to OpenAI names, so they won't match a third-party model
+  string. Options are offered based on those name patterns, and the endpoint's own error
+  is what you'll see if you ask for something it can't do.
 
 ## Relationship to Home Assistant core
 

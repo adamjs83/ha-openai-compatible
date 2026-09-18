@@ -72,3 +72,19 @@ def sanitize_url_for_logging(url: str) -> str:
     if parsed.port:
         host = f"{host}:{parsed.port}"
     return urlunparse(parsed._replace(netloc=f"***@{host}"))
+
+
+def title_from_base_url(url: str) -> str:
+    """Return a config entry title identifying the provider.
+
+    Upstream titles every entry "ChatGPT", which is wrong the moment the
+    endpoint is not OpenAI's and useless when there is one entry per provider.
+    The host (with port, when given) is what actually distinguishes them.
+    Falls back to the whole string if it cannot be parsed, so this never
+    raises in the middle of creating an entry.
+    """
+    try:
+        netloc = urlparse(url).netloc
+    except ValueError:
+        return url
+    return netloc or url

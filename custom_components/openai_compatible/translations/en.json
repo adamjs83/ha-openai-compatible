@@ -18,7 +18,7 @@
           "base_url": "API base URL"
         },
         "data_description": {
-          "api_key": "Your OpenAI API key.",
+          "api_key": "The API key for this endpoint. Leave blank if it does not require authentication.",
           "base_url": "The base URL of the OpenAI-compatible API, including any version path such as /v1. The endpoint must implement the Responses API."
         },
         "description": "Reauthentication required. Please enter your updated API key and confirm the API base URL."
@@ -26,13 +26,15 @@
       "user": {
         "data": {
           "api_key": "API key",
-          "base_url": "API base URL"
+          "base_url": "API base URL",
+          "name": "Name"
         },
         "data_description": {
-          "api_key": "Your OpenAI API key.",
-          "base_url": "The base URL of the OpenAI-compatible API, including any version path such as /v1. The endpoint must implement the Responses API."
+          "api_key": "The API key for this endpoint. Leave blank if it does not require authentication.",
+          "base_url": "The base URL of the OpenAI-compatible API, including any version path such as /v1. The endpoint must implement the Responses API.",
+          "name": "A label for this provider, for example LiteLLM. Defaults to the endpoint's host."
         },
-        "description": "Set up OpenAI Conversation integration by providing your OpenAI API key. Instructions to obtain an API key can be found [here]({instructions_url})."
+        "description": "Connect to an OpenAI-compatible API. One entry per server or provider; you add endpoints for individual models afterwards. See the [setup notes]({instructions_url}) for what the endpoint has to support."
       }
     }
   },

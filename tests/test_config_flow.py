@@ -95,42 +95,30 @@ async def test_form(hass: HomeAssistant) -> None:
         "base_url": DEFAULT_BASE_URL,
     }
     assert result2["options"] == {}
-    assert result2["subentries"] == [
-        {
-            "subentry_type": "conversation",
-            "data": RECOMMENDED_CONVERSATION_OPTIONS,
-            "title": DEFAULT_CONVERSATION_NAME,
-            "unique_id": None,
-        },
-        {
-            "subentry_type": "ai_task_data",
-            "data": RECOMMENDED_AI_TASK_OPTIONS,
-            "title": DEFAULT_AI_TASK_NAME,
-            "unique_id": None,
-        },
-        {
-            "subentry_type": "stt",
-            "data": RECOMMENDED_STT_OPTIONS,
-            "title": DEFAULT_STT_NAME,
-            "unique_id": None,
-        },
-        {
-            "subentry_type": "tts",
-            "data": RECOMMENDED_TTS_OPTIONS,
-            "title": DEFAULT_TTS_NAME,
-            "unique_id": None,
-        },
-    ]
+    # Setup creates the provider only. Entities are added afterwards, one per
+    # type and model, so nothing here is guessed on the user's behalf.
+    assert list(result2["subentries"]) == []
+    assert result2["title"] == "api.openai.com"
     assert result2["version"] == 2
     assert result2["minor_version"] == 8
     assert len(mock_setup_entry.mock_calls) == 1
 
 
-async def test_duplicate_entry(hass: HomeAssistant) -> None:
-    """Test we abort on duplicate config entry."""
+async def test_duplicate_entry_is_allowed(hass: HomeAssistant) -> None:
+    """Several entries may point at one provider.
+
+    Upstream aborts with already_configured when url+key match an existing
+    entry. This fork drops that check -- see async_step_user -- because one
+    entry per provider-side key, or a second entry against the same server,
+    are both legitimate here.
+    """
+    # Pinned to the current version: the v1 -> v2 migration collapses multiple
+    # entries, which would remove one and mask what this test is checking.
     MockConfigEntry(
         domain=DOMAIN,
         data={CONF_API_KEY: "bla", CONF_BASE_URL: DEFAULT_BASE_URL},
+        version=2,
+        minor_version=8,
     ).add_to_hass(hass)
 
     result = await hass.config_entries.flow.async_init(
@@ -139,9 +127,15 @@ async def test_duplicate_entry(hass: HomeAssistant) -> None:
     assert result["type"] is FlowResultType.FORM
     assert not result["errors"]
 
-    with patch(
-        "custom_components.openai_compatible.config_flow.openai.resources.models.AsyncModels.list",
-        new_callable=AsyncMock,
+    with (
+        patch(
+            "custom_components.openai_compatible.config_flow.openai.resources.models.AsyncModels.list",
+            new_callable=AsyncMock,
+        ),
+        patch(
+            "custom_components.openai_compatible.async_setup_entry",
+            return_value=True,
+        ),
     ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
@@ -149,9 +143,10 @@ async def test_duplicate_entry(hass: HomeAssistant) -> None:
                 CONF_API_KEY: "bla",
             },
         )
+        await hass.async_block_till_done()
 
-    assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "already_configured"
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 2
 
 
 async def test_creating_conversation_subentry(

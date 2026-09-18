@@ -104,12 +104,31 @@ from .const import (
     UNSUPPORTED_PRIORITY_SERVICE_TIERS_MODELS,
     UNSUPPORTED_WEB_SEARCH_MODELS,
 )
-from .url_util import CredentialsInBaseURL, InvalidBaseURL, normalize_base_url
+from .model_list import async_fetch_model_ids, model_field
+from .url_util import (
+    CredentialsInBaseURL,
+    InvalidBaseURL,
+    normalize_base_url,
+    title_from_base_url,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
+STEP_REAUTH_DATA_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_BASE_URL, default=DEFAULT_BASE_URL): str,
+        vol.Optional(CONF_API_KEY, default=""): str,
+    }
+)
+
+# The user step additionally names the provider, since there is one entry per
+# server and the host alone is a poor label. Reauth deliberately reuses the
+# schema *without* the name: that step writes its input straight back into
+# entry.data via data_updates, so a name field there would persist the title
+# as connection data on every key rotation.
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
+        vol.Optional(CONF_NAME, default=""): str,
         vol.Required(CONF_BASE_URL, default=DEFAULT_BASE_URL): str,
         vol.Optional(CONF_API_KEY, default=""): str,
     }
@@ -145,7 +164,11 @@ class OpenAIConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            self._async_abort_entries_match(user_input)
+            # Deliberately no _async_abort_entries_match() here: upstream
+            # aborts when url+key match an existing entry, which blocks
+            # legitimate setups such as one entry per provider-side key, or a
+            # second entry against the same server kept for a different
+            # purpose. Duplicate entries are the user's call to make.
             try:
                 await validate_input(self.hass, user_input)
             except CredentialsInBaseURL:
@@ -164,35 +187,10 @@ class OpenAIConfigFlow(ConfigFlow, domain=DOMAIN):
                     return self.async_update_reload_and_abort(
                         self._get_reauth_entry(), data_updates=user_input
                     )
+                name = (user_input.pop(CONF_NAME, "") or "").strip()
                 return self.async_create_entry(
-                    title="ChatGPT",
+                    title=name or title_from_base_url(user_input[CONF_BASE_URL]),
                     data=user_input,
-                    subentries=[
-                        {
-                            "subentry_type": "conversation",
-                            "data": RECOMMENDED_CONVERSATION_OPTIONS,
-                            "title": DEFAULT_CONVERSATION_NAME,
-                            "unique_id": None,
-                        },
-                        {
-                            "subentry_type": "ai_task_data",
-                            "data": RECOMMENDED_AI_TASK_OPTIONS,
-                            "title": DEFAULT_AI_TASK_NAME,
-                            "unique_id": None,
-                        },
-                        {
-                            "subentry_type": "stt",
-                            "data": RECOMMENDED_STT_OPTIONS,
-                            "title": DEFAULT_STT_NAME,
-                            "unique_id": None,
-                        },
-                        {
-                            "subentry_type": "tts",
-                            "data": RECOMMENDED_TTS_OPTIONS,
-                            "title": DEFAULT_TTS_NAME,
-                            "unique_id": None,
-                        },
-                    ],
                 )
 
         return self.async_show_form(
@@ -202,7 +200,7 @@ class OpenAIConfigFlow(ConfigFlow, domain=DOMAIN):
             ),
             errors=errors,
             description_placeholders={
-                "instructions_url": "https://github.com/adamjs83/ha-openai-compatible#generate-an-api-key",
+                "instructions_url": "https://github.com/adamjs83/ha-openai-compatible#configuration",
             },
         )
 
@@ -220,7 +218,7 @@ class OpenAIConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_show_form(
                 step_id="reauth_confirm",
                 data_schema=self.add_suggested_values_to_schema(
-                    STEP_USER_DATA_SCHEMA, self._get_reauth_entry().data
+                    STEP_REAUTH_DATA_SCHEMA, self._get_reauth_entry().data
                 ),
             )
 
@@ -259,6 +257,14 @@ class OpenAISubentryFlowHandler(ConfigSubentryFlow):
             self.options = RECOMMENDED_AI_TASK_OPTIONS.copy()
         else:
             self.options = RECOMMENDED_CONVERSATION_OPTIONS.copy()
+        # Start a new endpoint with "recommended" unticked. Ticked (upstream's
+        # default) creates the subentry straight from this first step, which
+        # silently pins RECOMMENDED_CHAT_MODEL -- an OpenAI model name that a
+        # third-party provider will not serve -- and never shows the model
+        # field at all. Unticked, the next step asks which model to use.
+        # Reconfigure is untouched: it keeps whatever the subentry was saved
+        # with, via async_step_reconfigure.
+        self.options[CONF_RECOMMENDED] = False
         return await self.async_step_init()
 
     async def async_step_reconfigure(
@@ -359,10 +365,14 @@ class OpenAISubentryFlowHandler(ConfigSubentryFlow):
         errors: dict[str, str] = {}
 
         step_schema: VolDictType = {
+            # Upstream makes this a free-text box defaulting to an OpenAI
+            # model name. Offer what the provider actually serves instead.
             vol.Optional(
                 CONF_CHAT_MODEL,
                 default=RECOMMENDED_CHAT_MODEL,
-            ): str,
+            ): model_field(
+                await async_fetch_model_ids(self._get_entry().runtime_data)
+            ),
             vol.Optional(
                 CONF_MAX_TOKENS,
                 default=RECOMMENDED_MAX_TOKENS,
@@ -406,7 +416,7 @@ class OpenAISubentryFlowHandler(ConfigSubentryFlow):
 
         step_schema: VolDictType = {}
 
-        model = options[CONF_CHAT_MODEL]
+        model = options.get(CONF_CHAT_MODEL, RECOMMENDED_CHAT_MODEL)
 
         if not model.startswith(tuple(UNSUPPORTED_CODE_INTERPRETER_MODELS)):
             step_schema.update(
@@ -763,18 +773,12 @@ class OpenAISubentrySTTFlowHandler(ConfigSubentryFlow):
                 ): TextSelector(
                     TextSelectorConfig(multiline=True, type=TextSelectorType.TEXT)
                 ),
+                # Upstream hardcodes OpenAI's three transcribe models here;
+                # ask the provider instead.
                 vol.Optional(
                     CONF_CHAT_MODEL, default=RECOMMENDED_STT_MODEL
-                ): SelectSelector(
-                    SelectSelectorConfig(
-                        options=[
-                            "gpt-4o-transcribe",
-                            "gpt-4o-mini-transcribe",
-                            "whisper-1",
-                        ],
-                        mode=SelectSelectorMode.DROPDOWN,
-                        custom_value=True,
-                    )
+                ): model_field(
+                    await async_fetch_model_ids(self._get_entry().runtime_data)
                 ),
             }
         )
@@ -846,6 +850,15 @@ class OpenAISubentryTTSFlowHandler(ConfigSubentryFlow):
             {
                 vol.Optional(CONF_PROMPT): TextSelector(
                     TextSelectorConfig(multiline=True, type=TextSelectorType.TEXT)
+                ),
+                # Upstream offers no model field for TTS at all -- it silently
+                # uses RECOMMENDED_TTS_OPTIONS' gpt-4o-mini-tts, which a
+                # third-party endpoint is unlikely to serve.
+                vol.Optional(
+                    CONF_CHAT_MODEL,
+                    default=RECOMMENDED_TTS_OPTIONS[CONF_CHAT_MODEL],
+                ): model_field(
+                    await async_fetch_model_ids(self._get_entry().runtime_data)
                 ),
                 vol.Optional(
                     CONF_TTS_SPEED, default=RECOMMENDED_TTS_SPEED
