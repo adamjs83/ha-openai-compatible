@@ -2,6 +2,11 @@
 
 from unittest.mock import AsyncMock, patch
 
+import httpx
+import openai
+import pytest
+
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -26,7 +31,7 @@ async def test_client_built_with_base_url(hass: HomeAssistant) -> None:
         "custom_components.openai_compatible.openai.AsyncOpenAI"
     ) as mock_client:
         mock_client.return_value.platform_headers = lambda: {}
-        mock_client.return_value.with_options.return_value.models.list = AsyncMock()
+        mock_client.return_value.models.list = AsyncMock()
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
@@ -47,7 +52,7 @@ async def test_api_key_optional(hass: HomeAssistant) -> None:
         "custom_components.openai_compatible.openai.AsyncOpenAI"
     ) as mock_client:
         mock_client.return_value.platform_headers = lambda: {}
-        mock_client.return_value.with_options.return_value.models.list = AsyncMock()
+        mock_client.return_value.models.list = AsyncMock()
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
@@ -73,10 +78,56 @@ async def test_migration_backfills_missing_base_url(hass: HomeAssistant) -> None
         "custom_components.openai_compatible.openai.AsyncOpenAI"
     ) as mock_client:
         mock_client.return_value.platform_headers = lambda: {}
-        mock_client.return_value.with_options.return_value.models.list = AsyncMock()
+        mock_client.return_value.models.list = AsyncMock()
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
     assert entry.data[CONF_BASE_URL] == DEFAULT_BASE_URL
     assert entry.minor_version == 8
     assert mock_client.call_args.kwargs["base_url"] == DEFAULT_BASE_URL
+
+
+@pytest.mark.parametrize(
+    ("error", "state"),
+    [
+        (
+            openai.AuthenticationError(
+                "bad key",
+                response=httpx.Response(401, request=httpx.Request("GET", "http://x")),
+                body=None,
+            ),
+            ConfigEntryState.SETUP_ERROR,
+        ),
+        (
+            openai.APIConnectionError(request=httpx.Request("GET", "http://x")),
+            ConfigEntryState.SETUP_RETRY,
+        ),
+    ],
+)
+async def test_setup_checks_connection(
+    hass: HomeAssistant, error: Exception, state: ConfigEntryState
+) -> None:
+    """Setup must actually call GET /models and act on its failure.
+
+    AsyncModels.list returns an awaitable paginator; handing the bound method to
+    the executor returned it unawaited, so no request was made and a bad key or
+    unreachable endpoint still set up.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"api_key": "sk-test", CONF_BASE_URL: "http://192.0.2.10:4000/v1"},
+        version=2,
+        minor_version=8,
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.openai_compatible.openai.AsyncOpenAI"
+    ) as mock_client:
+        mock_client.return_value.platform_headers = lambda: {}
+        mock_client.return_value.models.list = AsyncMock(side_effect=error)
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    mock_client.return_value.models.list.assert_awaited_once_with(timeout=10.0)
+    assert entry.state is state
