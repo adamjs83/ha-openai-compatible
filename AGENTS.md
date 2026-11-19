@@ -30,6 +30,7 @@ Production Home Assistant installs this integration through HACS from this repo'
 - Minimum Home Assistant version changes: update `hacs.json` and the README.
 - Upstream syncs: keep `UPSTREAM_COMMIT` accurate. User-facing string changes: update `strings.json` and regenerate `translations/en.json`.
 - Release process or version behavior changes: update the README's Releases section and the manifest or workflow as applicable.
+- Every user-visible fix or change: add it to `CHANGELOG.md` under the version being prepared.
 
 ## Definition of done
 

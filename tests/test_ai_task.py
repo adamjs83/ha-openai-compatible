@@ -103,6 +103,27 @@ async def test_generate_structured_data(
 
     assert result.data == {"characters": ["Mario", "Luigi"]}
 
+    text_format = mock_create_stream.call_args.kwargs["text"]["format"]
+    # Strict mode is requested on the format (OpenAI's switch), not inside the
+    # JSON schema: Anthropic via LiteLLM rejects `strict` on an object schema.
+    assert text_format["strict"] is True
+
+    def _objects(node):
+        if isinstance(node, dict):
+            if node.get("type") == "object":
+                yield node
+            for value in node.values():
+                yield from _objects(value)
+        elif isinstance(node, list):
+            for value in node:
+                yield from _objects(value)
+
+    objects = list(_objects(text_format["schema"]))
+    assert objects
+    for obj in objects:
+        assert "strict" not in obj
+        assert obj["additionalProperties"] is False
+
 
 @pytest.mark.usefixtures("mock_init_component")
 async def test_generate_invalid_structured_data(

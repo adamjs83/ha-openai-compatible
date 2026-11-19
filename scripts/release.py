@@ -76,7 +76,11 @@ def main() -> int:
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     previous = manifest["version"]
     if previous == version:
-        raise SystemExit(f"manifest.json is already {version}")
+        # Bumped already (e.g. alongside its CHANGELOG entry): just tag it.
+        run("git", "tag", "--annotate", tag, "-m", tag)
+        print(f"manifest.json is already {version}; tagged {tag}")
+        print("publish it with:  git push origin main --follow-tags")
+        return 0
 
     manifest["version"] = version
     MANIFEST.write_text(

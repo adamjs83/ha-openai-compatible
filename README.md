@@ -143,6 +143,12 @@ know about anyway:
   effort and so on are keyed to OpenAI names, so they won't match a third-party model
   string. Options are offered based on those name patterns, and the endpoint's own error
   is what you'll see if you ask for something it can't do.
+- Temperature and top-p are only sent when you change them from 1.0 (the API default).
+  Reasoning models reject both, and a gateway alias such as LiteLLM's `openai-mid` gives
+  no hint that it is one, so leave them at 1.0 for an alias that routes to a reasoning
+  model.
+- Structured AI Task output asks for strict mode on the response format, not inside
+  the JSON schema, so the schema also works for Anthropic models through LiteLLM.
 
 ## Known OpenAI-specific behaviour
 
@@ -202,7 +208,8 @@ python scripts/release.py 0.2.0
 git push origin main --follow-tags
 ```
 
-The script bumps `manifest.json`, commits, and creates the annotated tag `v0.2.0`. It
+The script bumps `manifest.json`, commits, and creates the annotated tag `v0.2.0`; if the
+manifest was already bumped (alongside its [CHANGELOG](CHANGELOG.md) entry), it only tags. It
 deliberately does not push — pushing the tag is what publishes. That triggers
 [`release.yaml`](.github/workflows/release.yaml), which refuses to publish if the tag
 and the manifest version disagree (HACS reads the tag, HA reads the manifest; when they

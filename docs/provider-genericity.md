@@ -41,6 +41,7 @@ target, because it will reject what it does not implement.
 | `prompt_cache_retention: "24h"` | always, unless the model name matches `UNSUPPORTED_EXTENDED_CACHE_RETENTION_MODELS` | 563 |
 | `reasoning`, `include: ["reasoning.encrypted_content"]` | model name starts with `o` or `gpt-5` | 525-544 |
 | `text.verbosity` | model name starts with `gpt-5` | 555-557 |
+| `top_p`, `temperature` | only when set away from 1.0, and never for `gpt-5` with reasoning on (0.2.2: an alias of a reasoning model used to get them and 400) | 547-561 |
 
 `service_tier`, `store` and `prompt_cache_retention` are therefore sent to every
 provider, whatever it is. A server that validates its input strictly returns 400; a

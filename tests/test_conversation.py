@@ -21,6 +21,8 @@ from custom_components.openai_compatible.const import (
     CONF_PRO_MODE,
     CONF_SERVICE_TIER,
     CONF_STORE_RESPONSES,
+    CONF_TEMPERATURE,
+    CONF_TOP_P,
 )
 from homeassistant.const import CONF_LLM_HASS_API
 from homeassistant.core import Context, HomeAssistant
@@ -462,3 +464,54 @@ async def test_model_args(
     model_args.pop("input")
     assert model_args.pop("user") == result.conversation_id
     assert model_args == snapshot
+
+
+@pytest.mark.parametrize(
+    ("subentry_options", "expected"),
+    [
+        # A gateway alias (e.g. LiteLLM) that maps to a reasoning model: the name
+        # says nothing about the model, so default sampling values must not be sent.
+        ({CONF_CHAT_MODEL: "openai-mid"}, {}),
+        (
+            {CONF_CHAT_MODEL: "openai-mid", CONF_TOP_P: 1.0, CONF_TEMPERATURE: 1.0},
+            {},
+        ),
+        # Values the user changed are still sent.
+        (
+            {CONF_CHAT_MODEL: "openai-mid", CONF_TOP_P: 0.9, CONF_TEMPERATURE: 0.4},
+            {"top_p": 0.9, "temperature": 0.4},
+        ),
+        ({CONF_CHAT_MODEL: "openai-mid", CONF_TEMPERATURE: 0.4}, {"temperature": 0.4}),
+        # GPT-5 with reasoning never gets them, even when set.
+        ({CONF_CHAT_MODEL: "gpt-5", CONF_TEMPERATURE: 0.4}, {}),
+    ],
+)
+async def test_sampling_params_only_sent_when_changed(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_init_component,
+    mock_create_stream: AsyncMock,
+    subentry_options: dict,
+    expected: dict,
+) -> None:
+    """top_p/temperature are omitted unless the user set non-default values."""
+    subentry = next(
+        entry
+        for entry in mock_config_entry.subentries.values()
+        if entry.subentry_type == "conversation"
+    )
+    hass.config_entries.async_update_subentry(
+        mock_config_entry, subentry, data=subentry_options
+    )
+    await hass.async_block_till_done()
+
+    mock_create_stream.return_value = [
+        create_message_item(id="msg_A", text="Hi!", output_index=0),
+    ]
+    await conversation.async_converse(
+        hass, "Hello", None, Context(), agent_id="conversation.openai_conversation"
+    )
+
+    kwargs = mock_create_stream.call_args.kwargs
+    sent = {k: kwargs[k] for k in ("top_p", "temperature") if k in kwargs}
+    assert sent == expected

@@ -119,7 +119,8 @@ MAX_TOOL_ITERATIONS = 10
 def _adjust_schema(schema: dict[str, Any]) -> None:
     """Adjust the output schema to be compatible with OpenAI API."""
     if schema["type"] == "object":
-        schema.setdefault("strict", True)
+        # Strict mode is requested on the response format, not here: `strict` is
+        # not a JSON Schema keyword, and Anthropic (e.g. via LiteLLM) rejects it.
         schema.setdefault("additionalProperties", False)
         if "properties" not in schema:
             return
@@ -547,10 +548,16 @@ class OpenAIBaseLLMEntity(Entity):
             not model_args["model"].startswith("gpt-5")
             or model_args["reasoning"]["effort"] == "none"  # type: ignore[index]
         ):
-            model_args["top_p"] = options.get(CONF_TOP_P, RECOMMENDED_TOP_P)
-            model_args["temperature"] = options.get(
-                CONF_TEMPERATURE, RECOMMENDED_TEMPERATURE
-            )
+            # Only send sampling values the user changed. The defaults equal the
+            # API defaults, and reasoning models reject these parameters; behind a
+            # gateway alias (e.g. LiteLLM "openai-mid") the model name cannot tell
+            # us whether the model is one.
+            top_p = options.get(CONF_TOP_P, RECOMMENDED_TOP_P)
+            if top_p != RECOMMENDED_TOP_P:
+                model_args["top_p"] = top_p
+            temperature = options.get(CONF_TEMPERATURE, RECOMMENDED_TEMPERATURE)
+            if temperature != RECOMMENDED_TEMPERATURE:
+                model_args["temperature"] = temperature
 
         if model_args["model"].startswith("gpt-5"):
             model_args["text"] = {
@@ -662,6 +669,7 @@ class OpenAIBaseLLMEntity(Entity):
                     "type": "json_schema",
                     "name": slugify(structure_name),
                     "schema": _format_structured_output(structure, chat_log.llm_api),
+                    "strict": True,
                 },
             }
 
