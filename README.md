@@ -149,6 +149,11 @@ know about anyway:
   model.
 - Structured AI Task output asks for strict mode on the response format, not inside
   the JSON schema, so the schema also works for Anthropic models through LiteLLM.
+- A reply cut off before it finished raises "OpenAI response incomplete", including
+  LiteLLM's form of it (a completed response with status `incomplete`). An AI Task reply
+  with no text raises "The model returned no text". Both are common with thinking models,
+  whose reasoning counts toward **Maximum tokens**: raise it on the AI Task endpoint (4096
+  or more for Claude with thinking) if you see them.
 
 ## Known OpenAI-specific behaviour
 

@@ -15,7 +15,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er, issue_registry as ir, selector
 
-from . import create_image_gen_call_item, create_message_item, create_reasoning_item
+from . import (
+    LITELLM_COMPLETED_INCOMPLETE,
+    create_image_gen_call_item,
+    create_message_item,
+    create_reasoning_item,
+)
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -158,6 +163,125 @@ async def test_generate_invalid_structured_data(
                 },
             ),
         )
+
+
+GRILL_STRUCTURE = vol.Schema(
+    {
+        vol.Optional("food"): selector.selector({"text": {}}),
+        vol.Optional("eta_minutes"): selector.selector({"number": {}}),
+        vol.Optional("stalled"): selector.selector({"boolean": {}}),
+    }
+)
+
+
+@pytest.mark.usefixtures("mock_init_component")
+@pytest.mark.parametrize("structure", [None, GRILL_STRUCTURE])
+async def test_generate_data_thinking_cut_off_by_litellm(
+    hass: HomeAssistant,
+    mock_create_stream: AsyncMock,
+    structure: vol.Schema | None,
+) -> None:
+    """A thinking model that hits max tokens before writing text raises.
+
+    LiteLLM ends such a reply with response.completed, status "incomplete".
+    """
+    mock_create_stream.return_value = [
+        [
+            *create_reasoning_item(
+                id="rs_A", output_index=0, reasoning_summary="Thinking hard"
+            ),
+            LITELLM_COMPLETED_INCOMPLETE,
+        ]
+    ]
+
+    with pytest.raises(HomeAssistantError, match="response incomplete"):
+        await ai_task.async_generate_data(
+            hass,
+            task_name="Test Task",
+            entity_id="ai_task.openai_ai_task",
+            instructions="Generate test data",
+            structure=structure,
+        )
+
+
+@pytest.mark.usefixtures("mock_init_component")
+async def test_generate_structured_data_cut_off_by_litellm(
+    hass: HomeAssistant,
+    mock_create_stream: AsyncMock,
+) -> None:
+    """Cut-off JSON is reported as an incomplete reply, never parsed."""
+    mock_create_stream.return_value = [
+        [
+            *create_message_item(id="msg_A", text='{"food": "bri', output_index=0),
+            LITELLM_COMPLETED_INCOMPLETE,
+        ]
+    ]
+
+    with pytest.raises(HomeAssistantError, match="response incomplete"):
+        await ai_task.async_generate_data(
+            hass,
+            task_name="Test Task",
+            entity_id="ai_task.openai_ai_task",
+            instructions="Generate test data",
+            structure=GRILL_STRUCTURE,
+        )
+
+
+@pytest.mark.usefixtures("mock_init_component")
+@pytest.mark.parametrize("structure", [None, GRILL_STRUCTURE])
+async def test_generate_data_no_text(
+    hass: HomeAssistant,
+    mock_create_stream: AsyncMock,
+    structure: vol.Schema | None,
+) -> None:
+    """A completed reply with no text (content None) raises a clear error."""
+    mock_create_stream.return_value = [
+        create_reasoning_item(id="rs_A", output_index=0, reasoning_summary="Hmm")
+    ]
+
+    with pytest.raises(HomeAssistantError, match="returned no text"):
+        await ai_task.async_generate_data(
+            hass,
+            task_name="Test Task",
+            entity_id="ai_task.openai_ai_task",
+            instructions="Generate test data",
+            structure=structure,
+        )
+
+
+@pytest.mark.usefixtures("mock_init_component")
+async def test_generate_structured_data_after_thinking(
+    hass: HomeAssistant,
+    mock_create_stream: AsyncMock,
+) -> None:
+    """Thinking then JSON (Claude via LiteLLM) parses; optional fields are nullable."""
+    mock_create_stream.return_value = [
+        [
+            *create_reasoning_item(id="rs_A", output_index=0, reasoning_summary="Hm"),
+            *create_message_item(
+                id="msg_A",
+                text='{"food": "brisket", "eta_minutes": null, "stalled": true}',
+                output_index=1,
+            ),
+        ]
+    ]
+
+    result = await ai_task.async_generate_data(
+        hass,
+        task_name="Grill probe review",
+        entity_id="ai_task.openai_ai_task",
+        instructions="Review the probe",
+        structure=GRILL_STRUCTURE,
+    )
+
+    assert result.data == {"food": "brisket", "eta_minutes": None, "stalled": True}
+    text_format = mock_create_stream.call_args.kwargs["text"]["format"]
+    assert text_format["name"] == "grill_probe_review"
+    schema = text_format["schema"]
+    assert schema["additionalProperties"] is False
+    assert sorted(schema["required"]) == ["eta_minutes", "food", "stalled"]
+    assert schema["properties"]["eta_minutes"]["type"] == ["number", "null"]
+    assert schema["properties"]["stalled"]["type"] == ["boolean", "null"]
 
 
 @pytest.mark.usefixtures("mock_init_component")

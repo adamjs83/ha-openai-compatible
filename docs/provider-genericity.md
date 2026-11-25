@@ -78,8 +78,10 @@ rather than loud.
 - `manufacturer="OpenAI"` on every device (`entity.py:492`)
 - `DEFAULT_CONVERSATION_NAME`, `DEFAULT_AI_TASK_NAME`, `DEFAULT_STT_NAME`,
   `DEFAULT_TTS_NAME` in `const.py` — "OpenAI Conversation", "OpenAI AI Task", …
-- user-facing error text: `OpenAI response incomplete` (459), `OpenAI response failed`
-  (473), `OpenAI response error` (475), `Error talking to OpenAI` (719-720)
+- user-facing error text in `entity.py`: `OpenAI response incomplete` (`_raise_incomplete`,
+  also raised for LiteLLM's completed-with-status-`incomplete`), `OpenAI response failed`,
+  `OpenAI response error` (`_transform_stream`), `Error talking to OpenAI`
+  (`_async_handle_chat_log`)
 
 **Cost:** cosmetic, but the errors are the ones a user reads while debugging their own
 provider, which makes them actively misleading.

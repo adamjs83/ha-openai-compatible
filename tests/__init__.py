@@ -36,6 +36,10 @@ from openai.types.responses.response_function_web_search import ActionSearch
 from openai.types.responses.response_output_item import ImageGenerationCall
 from openai.types.responses.response_reasoning_item import Summary
 
+# Put in a mock_create_stream event list to end the stream the way LiteLLM's
+# Responses bridge ends a cut-off reply: response.completed, status "incomplete".
+LITELLM_COMPLETED_INCOMPLETE = object()
+
 
 def create_message_item(
     id: str, text: str | list[str], output_index: int

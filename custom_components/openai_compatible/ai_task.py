@@ -82,6 +82,10 @@ class OpenAITaskEntity(
             )
 
         text = chat_log.content[-1].content or ""
+        if not text.strip():
+            # A thinking model can spend its whole reply on reasoning and send
+            # no text (content None); say so instead of returning "".
+            raise HomeAssistantError("The model returned no text")
 
         if not task.structure:
             return ai_task.GenDataTaskResult(

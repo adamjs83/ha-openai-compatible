@@ -44,6 +44,8 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.syrupy import HomeAssistantSnapshotExtension
 from syrupy.assertion import SnapshotAssertion
 
+from . import LITELLM_COMPLETED_INCOMPLETE
+
 pytest_plugins = "pytest_homeassistant_custom_component"
 
 
@@ -222,7 +224,16 @@ def mock_create_stream() -> Generator[AsyncMock]:
         sequence_number = 2
         response.status = "completed"
 
+        # LiteLLM's Responses bridge (non-OpenAI models) reports a cut-off reply
+        # (finish_reason "length") as response.completed with status "incomplete"
+        # and no incomplete_details, not as a response.incomplete event.
+        completed_incomplete = False
+
         for value in events:
+            if value is LITELLM_COMPLETED_INCOMPLETE:
+                response.status = "incomplete"
+                completed_incomplete = True
+                break
             if isinstance(value, ResponseOutputItemDoneEvent):
                 response.output.append(value.item)
             elif isinstance(value, IncompleteDetails):
@@ -241,7 +252,13 @@ def mock_create_stream() -> Generator[AsyncMock]:
             if isinstance(value, ResponseErrorEvent):
                 return
 
-        if response.status == "incomplete":
+        if completed_incomplete:
+            yield ResponseCompletedEvent(
+                response=response,
+                sequence_number=sequence_number,
+                type="response.completed",
+            )
+        elif response.status == "incomplete":
             yield ResponseIncompleteEvent(
                 response=response,
                 sequence_number=sequence_number,

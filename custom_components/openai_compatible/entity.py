@@ -6,13 +6,14 @@ import json
 from mimetypes import guess_file_type
 from pathlib import Path
 import re
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, NoReturn, cast
 
 import openai
 from openai._streaming import AsyncStream
 from openai.types.responses import (
     EasyInputMessageParam,
     FunctionToolParam,
+    Response,
     ResponseCodeInterpreterToolCall,
     ResponseCompletedEvent,
     ResponseErrorEvent,
@@ -270,6 +271,21 @@ def _convert_content_to_param(
     return messages
 
 
+def _raise_incomplete(response: Response) -> NoReturn:
+    """Raise for a response that stopped before it was finished."""
+    if response.incomplete_details and response.incomplete_details.reason:
+        reason: str = response.incomplete_details.reason
+    else:
+        reason = "unknown reason"
+
+    if reason == "max_output_tokens":
+        reason = "max output tokens reached"
+    elif reason == "content_filter":
+        reason = "content filter triggered"
+
+    raise HomeAssistantError(f"OpenAI response incomplete: {reason}")
+
+
 async def _transform_stream(  # noqa: C901 - This is complex, but better to have it in one place
     chat_log: conversation.ChatLog,
     stream: AsyncStream[ResponseStreamEvent],
@@ -433,6 +449,11 @@ async def _transform_stream(  # noqa: C901 - This is complex, but better to have
                         }
                     }
                 )
+            # LiteLLM's Responses bridge (non-OpenAI models) reports a cut-off
+            # reply as response.completed with status "incomplete" and no
+            # incomplete_details, not as a response.incomplete event.
+            if event.response.status == "incomplete":
+                _raise_incomplete(event.response)
         elif isinstance(event, ResponseIncompleteEvent):
             if event.response.usage is not None:
                 chat_log.async_trace(
@@ -443,21 +464,7 @@ async def _transform_stream(  # noqa: C901 - This is complex, but better to have
                         }
                     }
                 )
-
-            if (
-                event.response.incomplete_details
-                and event.response.incomplete_details.reason
-            ):
-                reason: str = event.response.incomplete_details.reason
-            else:
-                reason = "unknown reason"
-
-            if reason == "max_output_tokens":
-                reason = "max output tokens reached"
-            elif reason == "content_filter":
-                reason = "content filter triggered"
-
-            raise HomeAssistantError(f"OpenAI response incomplete: {reason}")
+            _raise_incomplete(event.response)
         elif isinstance(event, ResponseFailedEvent):
             if event.response.usage is not None:
                 chat_log.async_trace(
@@ -468,7 +475,7 @@ async def _transform_stream(  # noqa: C901 - This is complex, but better to have
                         }
                     }
                 )
-            reason = "unknown reason"
+            reason: str = "unknown reason"
             if event.response.error is not None:
                 reason = event.response.error.message
             raise HomeAssistantError(f"OpenAI response failed: {reason}")
