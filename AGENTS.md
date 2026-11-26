@@ -6,12 +6,12 @@ This is a public Home Assistant custom integration (`openai_compatible`) for Ope
 
 The README covers installation, configuration, endpoint requirements, development, and releases. `docs/provider-genericity.md` audits remaining OpenAI-specific behavior and records an open design decision; it is not a scheduled plan. The vendored core revision is recorded in `custom_components/openai_compatible/UPSTREAM_COMMIT`. `hacs.json` sets the minimum Home Assistant version (2026.9.0); `manifest.json` carries the integration version. Development and CI use Python 3.14.
 
-Production Home Assistant installs this integration through HACS from this repo's GitHub releases; publishing a release and updating in HACS is how a change reaches it (owner's OK). The `hassio` repo's `custom_components/openai_compatible` is only the nightly backup's snapshot of that install; do not edit or copy code into it.
+Production Home Assistant installs this integration through Marketplace (HA's built-in successor to HACS since 2026.11) from this repo's GitHub releases; publishing a release and updating it in Marketplace is how a change reaches it (owner's OK). Marketplace still reads `hacs.json`. The `hassio` repo's `custom_components/openai_compatible` is only the nightly backup's snapshot of that install; do not edit or copy code into it.
 
 ## Boundaries
 
 - `origin` is a public GitHub repository. Any push to `main` publishes the code, not only a release tag. Do not push without the owner's explicit OK.
-- Changes to a live Home Assistant installation, a configured API provider or host, or a published GitHub release/HACS download need the owner's explicit OK. Read-only inspection is fine. The documented HACS and manual installation paths can change live Home Assistant behavior.
+- Changes to a live Home Assistant installation, a configured API provider or host, or a published GitHub release/Marketplace download need the owner's explicit OK. Read-only inspection is fine. The documented Marketplace, HACS and manual installation paths can change live Home Assistant behavior.
 - Keep the fork's configurable base URL and separate `openai_compatible` domain intact when syncing upstream code. Preserve config-entry migration, provider/subentry behavior, and the four entity types; tests cover these paths.
 - Do not put secrets, tokens, passwords, or private keys in any file. Do not search for credentials. Base URLs must reject embedded credentials because URLs can appear in errors and logs; API keys belong in the config flow's key field.
 - Never list or read the UNAS or `/nfs/media`.
@@ -34,7 +34,7 @@ Production Home Assistant installs this integration through HACS from this repo'
 
 ## Definition of done
 
-- Run `pytest tests/ -v` for code or translation changes. CI also runs Hassfest and the HACS validation action on pushes and pull requests; check their results when available.
+- Run `pytest tests/ -v` for code or translation changes. CI also runs Hassfest and the HACS validation action (it checks the `hacs.json` format Marketplace uses) on pushes and pull requests; check their results when available.
 - Keep behavior and docs aligned, including the translation output and upstream revision when affected. For releases, the tag version and `manifest.json` version must match; the release workflow enforces this.
 
 ## Layout

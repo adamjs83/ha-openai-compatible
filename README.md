@@ -2,7 +2,7 @@
 
 [![test](https://github.com/adamjs83/ha-openai-compatible/actions/workflows/test.yaml/badge.svg)](https://github.com/adamjs83/ha-openai-compatible/actions/workflows/test.yaml)
 [![validate](https://github.com/adamjs83/ha-openai-compatible/actions/workflows/validate.yaml/badge.svg)](https://github.com/adamjs83/ha-openai-compatible/actions/workflows/validate.yaml)
-[![HACS: custom](https://img.shields.io/badge/HACS-custom-41BDF5.svg)](https://hacs.xyz)
+[![Marketplace: custom](https://img.shields.io/badge/Marketplace%20%2F%20HACS-custom-41BDF5.svg)](https://www.home-assistant.io/integrations/marketplace/)
 
 Home Assistant's built-in **OpenAI** integration, with one change that matters: the
 **API base URL is configurable**. Point Home Assistant's conversation agent, AI Task,
@@ -46,12 +46,27 @@ Plus two actions on the entry itself: `openai_compatible.generate_content` and
 
 ## Installation
 
-### HACS (custom repository)
+### Marketplace (Home Assistant 2026.11 and newer)
+
+Home Assistant 2026.11 replaced HACS with the built-in
+[Marketplace](https://www.home-assistant.io/integrations/marketplace/), which moves
+existing HACS installs over by itself.
+
+1. **Settings → Marketplace → Add from link**
+2. Enter `adamjs83/ha-openai-compatible` under **GitHub link** and select **Add** (the
+   first time, Marketplace asks you to connect GitHub with a device sign-in code)
+3. Open the repository's page, select **Install**, and restart Home Assistant if the
+   Marketplace asks you to
+4. **Settings → Devices & services → Add integration → OpenAI Compatible**
+
+### HACS (Home Assistant before 2026.11)
 
 1. HACS → ⋮ → **Custom repositories**
 2. Add `https://github.com/adamjs83/ha-openai-compatible`, category **Integration**
 3. Find **OpenAI Compatible** in HACS, download it, and restart Home Assistant
 4. **Settings → Devices & services → Add integration → OpenAI Compatible**
+
+Both read this repository's GitHub releases and its `hacs.json`.
 
 ### Manual
 
@@ -198,7 +213,7 @@ tests for the base-URL behavior this fork adds.
 
 ## Releases
 
-HACS falls back to serving the default branch when a repository has no releases, so
+Marketplace (and HACS before it) falls back to the default branch when a repository has no releases, so
 every download looks identical and there is no way to tell what is installed. Tagged
 releases fix that, and Home Assistant shows `manifest.json`'s version on the
 integration page.
@@ -217,7 +232,7 @@ The script bumps `manifest.json`, commits, and creates the annotated tag `v0.2.0
 manifest was already bumped (alongside its [CHANGELOG](CHANGELOG.md) entry), it only tags. It
 deliberately does not push — pushing the tag is what publishes. That triggers
 [`release.yaml`](.github/workflows/release.yaml), which refuses to publish if the tag
-and the manifest version disagree (HACS reads the tag, HA reads the manifest; when they
+and the manifest version disagree (Marketplace reads the tag, HA reads the manifest; when they
 drift you install "v0.2.0" and it reports 0.1.0) and then creates the GitHub release.
 
 ## License
