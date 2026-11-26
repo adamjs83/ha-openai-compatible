@@ -3,7 +3,7 @@
 Versions match `custom_components/openai_compatible/manifest.json` and the `v*` release
 tags. Earlier releases are described on their GitHub release pages.
 
-## 0.2.3 — unreleased
+## 0.2.3 — 2026-11-25
 
 ### Fixed
 
